@@ -2,8 +2,10 @@ package parserqa
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -12,11 +14,11 @@ import (
 
 type ParserQA struct {
 	params *ParserQAParams
+	buf    *bytes.Buffer
 }
 
 func NewParserQA(opts ...Options) (*ParserQA, error) {
 	params, err := newParserQAParams(opts...)
-
 	if err != nil {
 		return nil, err
 	}
@@ -26,17 +28,11 @@ func NewParserQA(opts ...Options) (*ParserQA, error) {
 	}, nil
 }
 
-func (p *ParserQA) Parse() ([]map[string][]string, error) {
+func (p *ParserQA) Parse(reader io.Reader) ([]map[string][]string, error) {
 	var matches []map[string][]string
 	var currentMatch map[string][]string
 
-	f, err := os.OpenFile(p.params.GetFileName(), os.O_RDONLY, 0644)
-	if err != nil {
-		return matches, err
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		line := scanner.Text()
 
@@ -118,6 +114,11 @@ func (p *ParserQA) ConsolidateKillByPlayers(matches map[string][]string) map[str
 			if !strings.Contains(line, "Kill:") {
 				continue
 			}
+
+			if strings.Contains(line, "<world>") {
+				continue
+			}
+
 			player := strings.Split(line, "killed ")[1]
 			player = strings.Split(player, " by")[0]
 			player = strings.TrimSpace(player)
@@ -177,41 +178,50 @@ func (p *ParserQA) ConsolidateKillByMod(matches map[string][]string) map[string]
 }
 
 func (p *ParserQA) StdoutText() error {
-	matches, err := p.Parse()
+	f, err := os.OpenFile(p.params.GetFileName(), os.O_RDONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	matches, err := p.Parse(f)
 	if err != nil {
 		return err
 	}
 
+	var buffer bytes.Buffer
+
 	for i, matche := range matches {
-		fmt.Printf("Game_%d\n", i)
+
+		buffer.WriteString(fmt.Sprintf("Game_%d\n", i))
 
 		players := p.ConsolidatePlayers(matche)
 		for _, player := range players {
-			fmt.Println("  - Player:", player)
+			buffer.WriteString(fmt.Sprintf("  - Player: %s\n", player))
 		}
 
-		fmt.Printf("   %s\n", strings.Repeat("-", 10))
+		buffer.WriteString(fmt.Sprintf("   %s\n", strings.Repeat("-", 10)))
 
 		kills := p.ConsolidateKills(matche)
-		fmt.Println("  - Total kills:", kills)
+		buffer.WriteString(fmt.Sprintf("  - Total kills: %d\n", kills))
 
-		fmt.Printf("   %s\n", strings.Repeat("-", 10))
+		buffer.WriteString(fmt.Sprintf("   %s\n", strings.Repeat("-", 10)))
 
 		killbyplayers := p.ConsolidateKillByPlayers(matche)
 
 		for player, kill := range killbyplayers {
-			fmt.Println("  - Total kills by", player, "-", kill)
+			buffer.WriteString(fmt.Sprintf("  - Total kills by %s - %d\n", player, kill))
 		}
 
-		fmt.Printf("   %s\n", strings.Repeat("-", 10))
+		buffer.WriteString(fmt.Sprintf("   %s\n", strings.Repeat("-", 10)))
 
 		killbyworldplayers := p.ConsolidateKillByWorldPlayers(matche)
 
 		for player, kill := range killbyworldplayers {
-			fmt.Println("  - Total kills by world -", player, "-", kill)
+			buffer.WriteString(fmt.Sprintf("  - Total kills by world - %s - %d\n", player, kill))
 		}
 
-		fmt.Printf("   %s\n", strings.Repeat("-", 10))
+		buffer.WriteString(fmt.Sprintf("   %s\n", strings.Repeat("-", 10)))
 
 		recountKillByPlayers := make(map[string]int)
 		for player, kbwp := range killbyworldplayers {
@@ -223,24 +233,36 @@ func (p *ParserQA) StdoutText() error {
 		}
 
 		for player, kill := range recountKillByPlayers {
-			fmt.Println("  - Recount Total kills by", player, "-", kill)
+			buffer.WriteString(fmt.Sprintf("  - Recount Total kills by %s - %d\n", player, kill))
 		}
 
-		fmt.Printf("   %s\n", strings.Repeat("-", 10))
+		buffer.WriteString(fmt.Sprintf("   %s\n", strings.Repeat("-", 10)))
 
 		killbymods := p.ConsolidateKillByMod(matche)
 
 		for player, kill := range killbymods {
-			fmt.Println("  - Total kills by mod -", player, "-", kill)
+			buffer.WriteString(fmt.Sprintf("  - Total kills by mod - %s - %d\n", player, kill))
 		}
 
+	}
+
+	fmt.Println(buffer.String())
+
+	if p.params.GetBuffered() {
+		p.buf = &buffer
 	}
 
 	return nil
 }
 
 func (p *ParserQA) StdoutJSON() error {
-	matches, err := p.Parse()
+	f, err := os.OpenFile(p.params.GetFileName(), os.O_RDONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	matches, err := p.Parse(f)
 	if err != nil {
 		return err
 	}
@@ -287,5 +309,21 @@ func (p *ParserQA) StdoutJSON() error {
 
 	fmt.Println(string(jsonData))
 
+	if p.params.GetBuffered() {
+		p.buf = bytes.NewBuffer(jsonData)
+	}
+
 	return nil
+}
+
+func (p *ParserQA) GetBuffer() *bytes.Buffer {
+	return p.buf
+}
+
+func (p *ParserQA) GetBufferString() string {
+	return p.buf.String()
+}
+
+func (p *ParserQA) ResetBuffer() {
+	p.buf.Reset()
 }

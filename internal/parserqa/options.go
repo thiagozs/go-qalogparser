@@ -4,6 +4,7 @@ type Options func(*ParserQAParams) error
 
 type ParserQAParams struct {
 	filename string
+	buffered bool
 }
 
 func newParserQAParams(opts ...Options) (*ParserQAParams, error) {
@@ -25,14 +26,29 @@ func WithFileName(filename string) Options {
 	}
 }
 
+func WithBuffered() Options {
+	return func(params *ParserQAParams) error {
+		params.buffered = true
+		return nil
+	}
+}
+
 // getters -----
 
 func (p *ParserQAParams) GetFileName() string {
 	return p.filename
 }
 
+func (p *ParserQAParams) GetBuffered() bool {
+	return p.buffered
+}
+
 // setters -----
 
 func (p *ParserQAParams) SetFileName(filename string) {
 	p.filename = filename
+}
+
+func (p *ParserQAParams) SetBuffered(buffered bool) {
+	p.buffered = buffered
 }

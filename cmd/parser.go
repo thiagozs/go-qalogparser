@@ -20,7 +20,6 @@ func (k KindOutput) String() string {
 
 var (
 	input      string
-	output     string
 	kind       string
 	kindSelect KindOutput
 )
@@ -61,7 +60,6 @@ var parserCmd = &cobra.Command{
 
 func init() {
 	parserCmd.Flags().StringVarP(&input, "input", "i", "", "Input file")
-	parserCmd.Flags().StringVarP(&output, "output", "o", "", "Output file")
 	parserCmd.Flags().StringVarP(&kind, "kind", "k", "json", "Kind of output (json, text)")
 }
 
