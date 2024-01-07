@@ -2,8 +2,12 @@ package parserqa
 
 import (
 	"bufio"
+	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
+
+	"github.com/thiagozs/go-qalogparser/internal/domain"
 )
 
 type ParserQA struct {
@@ -170,4 +174,118 @@ func (p *ParserQA) ConsolidateKillByMod(matches map[string][]string) map[string]
 	}
 
 	return mods
+}
+
+func (p *ParserQA) StdoutText() error {
+	matches, err := p.Parse()
+	if err != nil {
+		return err
+	}
+
+	for i, matche := range matches {
+		fmt.Printf("Game_%d\n", i)
+
+		players := p.ConsolidatePlayers(matche)
+		for _, player := range players {
+			fmt.Println("  - Player:", player)
+		}
+
+		fmt.Printf("   %s\n", strings.Repeat("-", 10))
+
+		kills := p.ConsolidateKills(matche)
+		fmt.Println("  - Total kills:", kills)
+
+		fmt.Printf("   %s\n", strings.Repeat("-", 10))
+
+		killbyplayers := p.ConsolidateKillByPlayers(matche)
+
+		for player, kill := range killbyplayers {
+			fmt.Println("  - Total kills by", player, "-", kill)
+		}
+
+		fmt.Printf("   %s\n", strings.Repeat("-", 10))
+
+		killbyworldplayers := p.ConsolidateKillByWorldPlayers(matche)
+
+		for player, kill := range killbyworldplayers {
+			fmt.Println("  - Total kills by world -", player, "-", kill)
+		}
+
+		fmt.Printf("   %s\n", strings.Repeat("-", 10))
+
+		recountKillByPlayers := make(map[string]int)
+		for player, kbwp := range killbyworldplayers {
+			for player2, kbp := range killbyplayers {
+				if player == player2 {
+					recountKillByPlayers[player2] = kbp - kbwp
+				}
+			}
+		}
+
+		for player, kill := range recountKillByPlayers {
+			fmt.Println("  - Recount Total kills by", player, "-", kill)
+		}
+
+		fmt.Printf("   %s\n", strings.Repeat("-", 10))
+
+		killbymods := p.ConsolidateKillByMod(matche)
+
+		for player, kill := range killbymods {
+			fmt.Println("  - Total kills by mod -", player, "-", kill)
+		}
+
+	}
+
+	return nil
+}
+
+func (p *ParserQA) StdoutJSON() error {
+	matches, err := p.Parse()
+	if err != nil {
+		return err
+	}
+
+	matchesResults := domain.Matches{}
+
+	for i, matche := range matches {
+
+		players := p.ConsolidatePlayers(matche)
+		totalKills := p.ConsolidateKills(matche)
+
+		kills := p.ConsolidateKillByPlayers(matche)
+		killsByWorld := p.ConsolidateKillByWorldPlayers(matche)
+
+		recountKills := make(map[string]int)
+		for player, kbwp := range killsByWorld {
+			for player2, kbp := range kills {
+				if player == player2 {
+					recountKills[player2] = kbp - kbwp
+				}
+			}
+		}
+
+		mods := p.ConsolidateKillByMod(matche)
+
+		matcheName := fmt.Sprintf("game_%d", i)
+
+		gameData := map[string]interface{}{
+			matcheName: domain.Game{
+				TotalKills:   totalKills,
+				Players:      players,
+				Kills:        recountKills,
+				KillsbyMeans: mods,
+			},
+		}
+
+		matchesResults.Games = append(matchesResults.Games, gameData)
+	}
+
+	jsonData, err := json.MarshalIndent(matchesResults, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(jsonData))
+
+	return nil
 }

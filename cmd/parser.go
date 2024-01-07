@@ -7,17 +7,29 @@ import (
 	"github.com/thiagozs/go-qalogparser/internal/parserqa"
 )
 
+type KindOutput int
+
+const (
+	KindOutputText KindOutput = iota
+	KindOutputJSON
+)
+
+func (k KindOutput) String() string {
+	return [...]string{"text", "json"}[k]
+}
+
 var (
-	input  string
-	output string
+	input      string
+	output     string
+	kind       string
+	kindSelect KindOutput
 )
 
 var parserCmd = &cobra.Command{
 	Use:   "parser",
-	Short: "A parser for QA log files",
+	Short: "A parser for Quake Arena log files",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("parser called")
 
 		if err := handlerVars(cmd); err != nil {
 			fmt.Println(err)
@@ -27,45 +39,21 @@ var parserCmd = &cobra.Command{
 		popts := []parserqa.Options{parserqa.WithFileName(input)}
 		p, err := parserqa.NewParserQA(popts...)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Printf(err.Error())
 			return
 		}
 
-		matches, err := p.Parse()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		for i, matche := range matches {
-			fmt.Println("Game_", i)
-
-			players := p.ConsolidatePlayers(matche)
-			for _, player := range players {
-				fmt.Println("  - Player:", player)
+		switch kindSelect {
+		case KindOutputText:
+			if err := p.StdoutText(); err != nil {
+				fmt.Printf(err.Error())
+				return
 			}
-
-			kills := p.ConsolidateKills(matche)
-			fmt.Println("  - Total kills:", kills)
-
-			killbyplayers := p.ConsolidateKillByPlayers(matche)
-
-			for player, kill := range killbyplayers {
-				fmt.Println("  - Total kills by", player, "-", kill)
+		case KindOutputJSON:
+			if err := p.StdoutJSON(); err != nil {
+				fmt.Printf(err.Error())
+				return
 			}
-
-			killbyworld := p.ConsolidateKillByWorldPlayers(matche)
-
-			for player, kill := range killbyworld {
-				fmt.Println("  - Total kills by world -", player, "-", kill)
-			}
-
-			killbymods := p.ConsolidateKillByMod(matche)
-
-			for player, kill := range killbymods {
-				fmt.Println("  - Total kills by mod -", player, "-", kill)
-			}
-
 		}
 
 	},
@@ -74,6 +62,7 @@ var parserCmd = &cobra.Command{
 func init() {
 	parserCmd.Flags().StringVarP(&input, "input", "i", "", "Input file")
 	parserCmd.Flags().StringVarP(&output, "output", "o", "", "Output file")
+	parserCmd.Flags().StringVarP(&kind, "kind", "k", "json", "Kind of output (json, text)")
 }
 
 func handlerVars(cmd *cobra.Command) error {
@@ -81,8 +70,13 @@ func handlerVars(cmd *cobra.Command) error {
 		return fmt.Errorf("input file is required")
 	}
 
-	if output == "" {
-		return fmt.Errorf("output file is required")
+	switch kind {
+	case KindOutputText.String():
+		kindSelect = KindOutputText
+	case KindOutputJSON.String():
+		kindSelect = KindOutputJSON
+	default:
+		return fmt.Errorf("kind of output is invalid")
 	}
 
 	return nil
