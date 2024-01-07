@@ -1,0 +1,14 @@
+.envrc
+.env
+.vscode
+
+build/*
+!build/.gitkeep
+
+*.out
+
+scripts/*
+!scripts/.gitkeep
+
+tmp/*
+!tmp/.gitkeep
