@@ -14,3 +14,10 @@ build: # Build the binary
 	# ----------------
 	@CGO_ENABLED=0 GOOS=linux go build -a -o build/qaparser main.go
 	# Build complete +++
+
+.PHONY: test
+test: # Run a suite of tests
+	# Build the binary
+	# ----------------
+	@go test -v ./...
+	# Test complete +++
