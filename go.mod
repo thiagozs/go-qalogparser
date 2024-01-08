@@ -2,10 +2,7 @@ module github.com/thiagozs/go-qalogparser
 
 go 1.21.5
 
-require (
-	github.com/spf13/cobra v1.8.0
-	go.uber.org/mock v0.4.0
-)
+require github.com/spf13/cobra v1.8.0
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
